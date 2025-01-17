@@ -6,7 +6,6 @@ async function checkUrl(url) {
     return false;
   }
   url = /^https:\/\//.test(url) ? url : `https://${url}`;
-  console.log("url", url);
 
   try {
     const response = await axios.get(url, { timeout: 5000 });

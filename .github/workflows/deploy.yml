@@ -6,8 +6,36 @@ on:
       - master
 
 jobs:
+  codeql:
+    name: Analyze
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      matrix:
+        language: ["javascript"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
   deploy:
     runs-on: ubuntu-latest
+    needs: codeql
 
     steps:
       - name: Checkout code
@@ -18,11 +46,37 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
       - name: Install dependencies
         run: npm install
 
-      - name: Run tests
-        run: npm test
+      - name: Run tests with coverage
+        run: npm test -- --coverage
+
+      - name: Check coverage thresholds
+        run: |
+          STATEMENTS=$(grep -A 30 '<div class='\''clearfix'\''>' coverage/lcov-report/index.html | grep -oP '(?<=<span class="strong">)\d+(\.\d+)?(?=%)' | sed -n '1p')
+          BRANCHES=$(grep -A 30 '<div class='\''clearfix'\''>' coverage/lcov-report/index.html | grep -oP '(?<=<span class="strong">)\d+(\.\d+)?(?=%)' | sed -n '2p')
+          FUNCTIONS=$(grep -A 30 '<div class='\''clearfix'\''>' coverage/lcov-report/index.html | grep -oP '(?<=<span class="strong">)\d+(\.\d+)?(?=%)' | sed -n '3p')
+          LINES=$(grep -A 30 '<div class='\''clearfix'\''>' coverage/lcov-report/index.html | grep -oP '(?<=<span class="strong">)\d+(\.\d+)?(?=%)' | sed -n '4p')
+
+          if [ -z "$STATEMENTS" ] || [ -z "$BRANCHES" ] || [ -z "$FUNCTIONS" ] || [ -z "$LINES" ]; then
+            echo "Coverage data not found in the HTML report"
+            exit 1
+          fi
+
+          # Vérifier si la couverture est inférieure à 80% pour chaque catégorie
+          if (( $(echo "$STATEMENTS < 80" | bc -l) )) || (( $(echo "$BRANCHES < 80" | bc -l) )) || (( $(echo "$FUNCTIONS < 80" | bc -l) )) || (( $(echo "$LINES < 80" | bc -l) )); then
+            echo "Coverage is below 80% (Statements: $STATEMENTS%, Branches: $BRANCHES%, Functions: $FUNCTIONS%, Lines: $LINES%)"
+            exit 1
+          fi
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v1

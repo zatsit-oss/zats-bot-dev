@@ -5,7 +5,8 @@
   "scripts": {
     "start": "functions-framework --target=handler",
     "start:dev": "nodemon",
-    "test": "jest"
+    "test": "jest",
+    "test:coverage": "jest --coverage"
   },
   "author": "",
   "license": "ISC",

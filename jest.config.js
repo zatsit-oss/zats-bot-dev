@@ -1,5 +1,12 @@
 module.exports = {
   testEnvironment: "node",
   verbose: true,
-  // Ajoutez d'autres configurations si nécessaire
+  coverageThreshold: {
+    global: {
+      lines: 80,
+      branches: 80,
+      functions: 80,
+      statements: 80,
+    },
+  },
 };
